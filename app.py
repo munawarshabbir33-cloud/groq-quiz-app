@@ -36,8 +36,6 @@ if not st.session_state.logged_in:
             st.session_state.student_email = email_input
             st.session_state.logged_in = True
             st.rerun()
-        else:
-            st.error("Please fill out both name and email.")
     st.stop()
 
 # 4. Configuration
@@ -48,9 +46,8 @@ subject = col_b.text_input("Academic Subject:", on_change=reset_quiz)
 topic = col_c.text_input("Topic Area:", on_change=reset_quiz)
 
 study_mode = st.radio("Select Study Mode:", ["Multiple Choice (MCQ)", "Theory"], on_change=reset_quiz)
-question_length = st.selectbox("Theory Length:", ["Short Question", "Long Question"]) if study_mode == "Theory" else "short"
 
-# 5. Generation
+# 5. Question Generation
 if st.session_state.current_q_data is None:
     if st.button("Generate Question 🧠"):
         if not subject or not topic: st.error("Please fill in Subject and Topic.")
@@ -65,12 +62,15 @@ if st.session_state.current_q_data is None:
                     st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
 
-# 6. Grading
+# 6. Grading & MCQ Rendering
 else:
     st.info(st.session_state.current_q_data.get("question", "No question text found."))
-    if not st.session_state.answered:
-        if st.session_state.current_q_data['type'] == "Multiple Choice (MCQ)":
-            choice = st.radio("Select answer:", ["A", "B", "C", "D"], format_func=lambda x: f"{x}) {st.session_state.current_q_data.get(x, '')}")
+    
+    # MCQ Rendering Logic
+    if st.session_state.current_q_data['type'] == "Multiple Choice (MCQ)":
+        if not st.session_state.answered:
+            # Here are your options!
+            choice = st.radio("Select your answer:", ["A", "B", "C", "D"], format_func=lambda x: f"{x}) {st.session_state.current_q_data.get(x, '')}")
             if st.button("Submit"):
                 st.session_state.user_choice = choice
                 st.session_state.answered = True
@@ -78,22 +78,30 @@ else:
                 st.session_state.progress_data.append({"Subject": subject, "Topic": topic, "Score": score})
                 st.rerun()
         else:
+            # Display results
+            st.write(f"Your choice: {st.session_state.user_choice}")
+            if st.button("Next Question ⏭️"):
+                st.session_state.current_q_data = None
+                st.session_state.answered = False
+                st.rerun()
+    
+    # Theory Logic
+    else:
+        if not st.session_state.answered:
             ans = st.text_area("Type answer:")
             if st.button("Submit"):
                 st.session_state.answered = True
-                score = 100 # Simplified for demo
-                st.session_state.progress_data.append({"Subject": subject, "Topic": topic, "Score": score})
+                st.session_state.progress_data.append({"Subject": subject, "Topic": topic, "Score": 100})
                 st.rerun()
-    
-    if st.session_state.answered:
-        st.success("Answer processed!")
-        if st.button("Next Question ⏭️"):
-            st.session_state.current_q_data = None
-            st.session_state.answered = False
-            st.rerun()
+        else:
+            if st.button("Next Question ⏭️"):
+                st.session_state.current_q_data = None
+                st.session_state.answered = False
+                st.rerun()
 
 # 7. Dashboard
 if st.session_state.progress_data:
+    st.markdown("---")
     st.header("📈 Progress")
     df = pd.DataFrame(st.session_state.progress_data)
     st.line_chart(df["Score"])
