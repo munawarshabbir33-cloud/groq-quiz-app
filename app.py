@@ -40,7 +40,7 @@ if st.button("Generate Original Question"):
         
         # We use Llama 3 provided by Groq for high-speed free processing
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": generation_prompt}],
             temperature=0.7
         )
@@ -73,7 +73,7 @@ if st.session_state.generated_question:
             """
             
             grading_call = client.chat.completions.create(
-                model="llama3-70b-8192",
+                model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": grading_prompt}],
                 temperature=0.1
             )
