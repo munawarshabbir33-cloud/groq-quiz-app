@@ -10,7 +10,7 @@ api_token = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=api_token)
 
 # Provide your n8n Webhook URL here to enable the email feature
-N8N_WEBHOOK_URL = "https://hammad2026nustclasses.app.n8n.cloud/webhook-test/d8e699f0-59ab-4b77-9602-54f16e201939" 
+N8N_WEBHOOK_URL = "https://hammad2026nustclasses.app.n8n.cloud/webhook/d8e699f0-59ab-4b77-9602-54f16e201939" 
 
 st.set_page_config(page_title="AI Quiz Generator", page_icon="🎯", layout="wide")
 
