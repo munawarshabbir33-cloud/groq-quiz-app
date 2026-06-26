@@ -9,14 +9,14 @@ from groq import Groq
 api_token = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=api_token)
 
-# Provide your n8n Webhook URL here to enable the email feature
+# Provide your n8n Webhook URL here
 N8N_WEBHOOK_URL = "https://hammad2026nustclasses.app.n8n.cloud/webhook/d8e699f0-59ab-4b77-9602-54f16e201939" 
 
 st.set_page_config(page_title="AI Quiz Generator", page_icon="🎯", layout="wide")
 
 # 2. Setup Memory (Session States)
 if "progress_data" not in st.session_state:
-    st.session_state.progress_data = []  # Stores the spreadsheet data
+    st.session_state.progress_data = []  
 if "current_q_data" not in st.session_state:
     st.session_state.current_q_data = None
 if "answered" not in st.session_state:
@@ -31,7 +31,7 @@ with st.expander("👤 Student Profile & Settings", expanded=True):
 
 if not student_name or not student_email:
     st.warning("Please enter your name and email above to start tracking your progress.")
-    st.stop()  # Pauses the app until the user logs in
+    st.stop()  
 
 # 4. Configuration Controls
 st.markdown("---")
@@ -52,8 +52,8 @@ if st.button("Generate Question") or (st.session_state.answered and st.button("N
     if subject.strip() == "" or topic.strip() == "":
         st.error("Please fill in Subject and Topic.")
     else:
-        st.session_state.answered = False # Reset answering state
-        st.session_state.current_q_data = None # Clear old question
+        st.session_state.answered = False 
+        st.session_state.current_q_data = None 
         
         with st.spinner("Generating problem..."):
             if study_mode == "Multiple Choice (MCQ)":
@@ -77,7 +77,6 @@ if st.button("Generate Question") or (st.session_state.answered and st.button("N
                 temperature=0.7
             )
             
-            # Parse the JSON response
             try:
                 raw_text = response.choices[0].message.content.strip()
                 if raw_text.startswith("```json"):
@@ -105,19 +104,24 @@ if st.session_state.current_q_data and not st.session_state.answered:
             st.session_state.answered = True
             correct_ans = q_data["correct"]
             
-            # Save progress
             score = 100 if user_choice == correct_ans else 0
             st.session_state.progress_data.append({"Subject": subject, "Topic": topic, "Score": score})
             
-            # Display colored boxes
+            # ANIMATION & FACE LOGIC
+            if score == 100:
+                st.balloons()
+                st.markdown("<h1 style='text-align: center;'>😊 Excellent Work!</h1>", unsafe_allow_html=True)
+            else:
+                st.markdown("<h1 style='text-align: center;'>😢 Keep Trying!</h1>", unsafe_allow_html=True)
+            
             for opt in ["A", "B", "C", "D"]:
                 text = f"{opt}) {q_data[opt]}"
                 if opt == correct_ans:
-                    st.markdown(f"<div style='background-color:#d4edda; padding:10px; border-radius:5px; color:#155724;'>✅ <b>{text}</b> (Correct)</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='background-color:#d4edda; padding:10px; border-radius:5px; color:#155724; margin:5px 0;'>✅ <b>{text}</b> (Correct)</div>", unsafe_allow_html=True)
                 elif opt == user_choice and user_choice != correct_ans:
-                    st.markdown(f"<div style='background-color:#f8d7da; padding:10px; border-radius:5px; color:#721c24;'>❌ <b>{text}</b> (Your Answer)</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='background-color:#f8d7da; padding:10px; border-radius:5px; color:#721c24; margin:5px 0;'>❌ <b>{text}</b> (Your Answer)</div>", unsafe_allow_html=True)
                 else:
-                    st.markdown(f"<div style='padding:10px;'>{text}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='padding:10px; margin:5px 0;'>{text}</div>", unsafe_allow_html=True)
             
             st.markdown(f"**📚 Study Link:** [Click here to review {topic}]({study_link})")
 
@@ -145,11 +149,15 @@ if st.session_state.current_q_data and not st.session_state.answered:
                         score = 100 if eval_json["verdict"] == "CORRECT" else 0
                         st.session_state.progress_data.append({"Subject": subject, "Topic": topic, "Score": score})
                         
+                        # ANIMATION & FACE LOGIC
                         if score == 100:
-                            st.success(f"✅ CORRECT: {eval_json['explanation']}")
+                            st.balloons()
+                            st.markdown("<h1 style='text-align: center;'>😊 Correct!</h1>", unsafe_allow_html=True)
+                            st.success(f"{eval_json['explanation']}")
                             st.markdown(f"**📚 Explore More:** [Read about {topic}]({study_link})")
                         else:
-                            st.error(f"❌ INCORRECT: {eval_json['explanation']}")
+                            st.markdown("<h1 style='text-align: center;'>😢 Incorrect</h1>", unsafe_allow_html=True)
+                            st.error(f"{eval_json['explanation']}")
                             st.markdown(f"**📚 Needs review?** [Click here for the correct theory on {topic}]({study_link})")
                     except:
                         st.error("Grading system encountered a formatting error.")
@@ -168,7 +176,6 @@ if len(st.session_state.progress_data) > 0:
     col_left, col_right = st.columns(2)
     with col_left:
         st.subheader("Grade Trajectory")
-        # Creates a line chart showing if scores are increasing or decreasing
         st.line_chart(df["Score"]) 
         
     with col_right:
@@ -176,17 +183,29 @@ if len(st.session_state.progress_data) > 0:
         avg_df = df.groupby('Subject')['Score'].mean().reset_index()
         st.dataframe(avg_df, use_container_width=True)
     
-    # 9. Send to n8n to Email the Spreadsheet
-    if st.button("📧 Email My Progress Report"):
+    # DOWNLOAD SPREADSHEET BUTTON (LOCAL DOWNLOAD)
+    csv_data = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download My Progress Spreadsheet (CSV)",
+        data=csv_data,
+        file_name=f"{student_name}_progress_report.csv",
+        mime="text/csv"
+    )
+    
+    # 9. Send Data Out via n8n Webhook
+    if st.button("📧 Email My Progress Report & Graph Data"):
+        # Convert your data history table to a raw CSV text block to pass cleanly inside the JSON payload
+        raw_spreadsheet_text = df.to_csv(index=False)
+        
         payload = {
             "name": student_name,
             "email": student_email,
             "averages": avg_df.to_dict('records'),
-            "history": st.session_state.progress_data
+            "spreadsheet_content": raw_spreadsheet_text,
+            "scores_for_graph": df["Score"].tolist()
         }
         try:
-            # Sends the data to your n8n workflow
             requests.post(N8N_WEBHOOK_URL, json=payload)
-            st.success(f"Spreadsheet data sent successfully to {student_email} via n8n!")
+            st.success(f"All data successfully transmitted to your automated mail server!")
         except Exception as e:
-            st.error("Could not reach n8n webhook. Make sure your URL is configured.")
+            st.error("Could not reach n8n webhook. Check your URL.")
