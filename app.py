@@ -138,4 +138,4 @@ else:
             
             if st.button("Submit Answer"):
                 correct_ans = q_data["correct"]
-                score = 100 if user_choice == correct_ans else
+                score = 100 if user_choice == correct_ans else 0
