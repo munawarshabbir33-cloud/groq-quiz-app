@@ -1,4 +1,5 @@
 import streamlit as st
+import urllib.parse  # Used to safely create web links
 from groq import Groq
 
 # 1. Grab the secret token from Streamlit's cloud encrypted vault
@@ -11,34 +12,35 @@ client = Groq(api_key=api_token)
 st.set_page_config(page_title="AI Quiz Generator", page_icon="🎯", layout="centered")
 
 st.title("🎯 Free AI Quiz Generator")
-st.write("Generate academic testing materials instantly using Groq's fast AI.")
+st.write("Generate short, engaging academic questions instantly.")
 
 # Data capture block for inputs
 with st.container():
     grade_level = st.selectbox("Target Grade Level:", ["Grade 9", "Grade 10", "AS Level", "A Level"])
     subject = st.text_input("Academic Subject:", placeholder="e.g., Physics, Computer Science")
-    topic = st.text_input("Curriculum Topic Area:", placeholder="e.g., Stationary Waves, Arrays")
+    topic = st.text_input("Curriculum Topic Area:", placeholder="e.g., Newtons Law, Arrays")
 
-# Initialize persistent session states so data doesn't wipe when pages reload
+# Initialize persistent session states
 if "generated_question" not in st.session_state:
     st.session_state.generated_question = None
 if "evaluation_results" not in st.session_state:
     st.session_state.evaluation_results = None
 
-# 4. Question Generation Pipeline
+# 4. Question Generation Pipeline (UPDATED FOR SHORTER QUESTIONS)
 if st.button("Generate Original Question"):
     if subject.strip() == "" or topic.strip() == "":
         st.warning("Please fill in both the Subject and Topic boxes before proceeding.")
     else:
         st.write("Communicating with Groq AI network... generating problem.")
         
+        # We added a strict rule for brevity here
         generation_prompt = f"""
         You are an elite academic professor constructing test items for {grade_level} {subject}.
-        Generate exactly ONE highly analytical short-answer question testing knowledge on: {topic}.
+        Generate exactly ONE short-answer question testing knowledge on: {topic}.
+        CRITICAL RULE: The question must be extremely short, direct, and punchy (maximum 1 to 2 sentences, under 20 words).
         Do not make it multiple choice. Output ONLY the raw question text. No introductory filler text.
         """
         
-        # We use Llama 3 provided by Groq for high-speed free processing
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": generation_prompt}],
@@ -80,12 +82,22 @@ if st.session_state.generated_question:
             
             st.session_state.evaluation_results = grading_call.choices[0].message.content
 
-# Display results dynamically
+# 6. Dynamic Results Display & Study Link Logic (UPDATED)
 if st.session_state.evaluation_results:
     st.markdown("---")
     st.subheader("📊 Performance Diagnostics Feedback:")
     
+    # If they got it right, just show the success message
     if "VERDICT: CORRECT" in st.session_state.evaluation_results:
         st.success(st.session_state.evaluation_results)
+        
+    # If they got it wrong, show the error AND generate a study link
     else:
         st.error(st.session_state.evaluation_results)
+        
+        # Create a safe, clickable Google Search link for the specific topic
+        search_query = urllib.parse.quote(f"{subject} {topic} lesson explanation")
+        study_link = f"https://www.google.com/search?q={search_query}"
+        
+        # Display the link clearly to the student
+        st.markdown(f"**📚 Needs review?** [Click here to study more about **{topic}**]({study_link})")
