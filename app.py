@@ -11,7 +11,7 @@ from groq import Groq
 # ==========================================
 api_token = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=api_token)
-N8N_WEBHOOK_URL = "https://your-n8n-webhook-url-here" 
+N8N_WEBHOOK_URL = "https://hammad2026nustclasses.app.n8n.cloud/webhook/d8e699f0-59ab-4b77-9602-54f16e201939" 
 
 # Set up the page layout
 st.set_page_config(page_title="AI Quiz Generator", page_icon="🎯", layout="wide")
