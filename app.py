@@ -11,7 +11,7 @@ from groq import Groq
 # ==========================================
 api_token = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=api_token)
-N8N_WEBHOOK_URL = "https://hammad2026nustclasses.app.n8n.cloud/webhook/d8e699f0-59ab-4b77-9602-54f16e201939" 
+N8N_WEBHOOK_URL = "https://your-n8n-webhook-url-here" 
 
 # Set up the page layout
 st.set_page_config(page_title="AI Quiz Generator", page_icon="🎯", layout="wide")
@@ -19,12 +19,10 @@ st.set_page_config(page_title="AI Quiz Generator", page_icon="🎯", layout="wid
 # ==========================================
 # 2. CUSTOM BACKGROUND IMAGE (CSS)
 # ==========================================
-# A dynamic, quiz-themed background image (Question Marks)
 background_image_url = "https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?q=80&w=1920"
 
 page_bg_img = f"""
 <style>
-/* 1. This anchors the background to the absolute root of the entire webpage */
 .stApp {{
     background-image: url("{background_image_url}");
     background-size: cover;
@@ -32,13 +30,9 @@ page_bg_img = f"""
     background-attachment: fixed;
     background-repeat: no-repeat;
 }}
-
-/* 2. Makes the top header bar transparent so it doesn't block the image */
 header[data-testid="stHeader"] {{
     background: transparent !important;
 }}
-
-/* 3. The main content box: Slightly transparent white (85% opacity) so text is highly readable, but the background is always visible behind it */
 .block-container {{
     background-color: rgba(255, 255, 255, 0.85); 
     padding: 3rem !important;
@@ -55,7 +49,6 @@ st.markdown(page_bg_img, unsafe_allow_html=True)
 # 3. HELPER FUNCTIONS & SESSION STATES
 # ==========================================
 def reset_quiz():
-    """Instantly clears the board if a user changes the subject or topic."""
     st.session_state.current_q_data = None
     st.session_state.answered = False
 
@@ -95,7 +88,6 @@ st.markdown("---")
 st.subheader("📚 Configure Your Study Session")
 
 col_a, col_b, col_c = st.columns(3)
-# Set AS Level as the default option by setting index=2
 grade_level = col_a.selectbox("Target Grade:", ["Grade 9", "Grade 10", "AS Level", "A Level"], index=2, on_change=reset_quiz)
 subject = col_b.text_input("Academic Subject:", placeholder="e.g., Physics", on_change=reset_quiz)
 topic = col_c.text_input("Topic Area:", placeholder="e.g., Kinematics", on_change=reset_quiz)
@@ -117,16 +109,15 @@ if st.session_state.current_q_data is None:
                 random_seed = random.randint(1, 100000) 
                 
                 if study_mode == "Multiple Choice (MCQ)":
+                    # WE CHANGED THE PROMPT HERE to separate correct from incorrect
                     prompt = f"""
                     You are an expert academic professor. Create ONE unique, challenging, and factually accurate multiple choice question for {grade_level} {subject} on {topic}.
                     Seed: {random_seed}.
                     CRITICAL RULES:
                     1. The correct answer MUST be absolutely factually correct.
-                    2. The other 3 options MUST be plausible distractors related to the topic, but factually incorrect.
-                    3. Randomly assign the correct answer to A, B, C, or D. DO NOT constantly make the answer A or B. It must be randomized.
-                    4. EVERY option must have descriptive text content. No blank options.
+                    2. Provide exactly 3 plausible distractors that are factually incorrect.
                     You MUST output ONLY valid JSON format exactly like this:
-                    {{"question": "Question text here?", "A": "First option text", "B": "Second option text", "C": "Third option text", "D": "Fourth option text", "correct": "C"}}
+                    {{"question": "Question text here?", "correct_answer": "The right answer text", "incorrect_answers": ["Wrong text 1", "Wrong text 2", "Wrong text 3"]}}
                     """
                 else:
                     length_inst = "maximum 2 sentences." if question_length == "Short Question" else "a complex, multi-part scenario."
@@ -149,8 +140,24 @@ if st.session_state.current_q_data is None:
                     start_idx = raw_text.find('{')
                     end_idx = raw_text.rfind('}')
                     clean_json = raw_text[start_idx:end_idx+1] if start_idx != -1 else raw_text
+                    parsed_data = json.loads(clean_json)
+                    
+                    # WE ADDED PYTHON SHUFFLING HERE
+                    if study_mode == "Multiple Choice (MCQ)":
+                        options = [parsed_data["correct_answer"]] + parsed_data["incorrect_answers"]
+                        random.shuffle(options) # Python physically shuffles the deck
                         
-                    st.session_state.current_q_data = json.loads(clean_json)
+                        parsed_data["A"] = options[0]
+                        parsed_data["B"] = options[1]
+                        parsed_data["C"] = options[2]
+                        parsed_data["D"] = options[3]
+                        
+                        # Find out which letter Python gave to the correct answer
+                        letters = ["A", "B", "C", "D"]
+                        correct_index = options.index(parsed_data["correct_answer"])
+                        parsed_data["correct"] = letters[correct_index]
+
+                    st.session_state.current_q_data = parsed_data
                     st.session_state.current_q_data['type'] = study_mode
                     st.session_state.answered = False
                     st.rerun() 
@@ -169,26 +176,25 @@ else:
     search_query = urllib.parse.quote(f"{subject} {topic} answer explanation")
     study_link = f"https://www.google.com/search?q={search_query}"
 
-    # --- STATE A: WAITING FOR STUDENT TO ANSWER ---
     if not st.session_state.answered:
         
         if q_data['type'] == "Multiple Choice (MCQ)":
             user_choice = st.radio(
                 "Select your answer:", 
                 ["A", "B", "C", "D"], 
-                format_func=lambda x: f"{x}) {q_data.get(x, 'Error: Option text missing')}", 
+                format_func=lambda x: f"{x}) {q_data.get(x, '')}", 
                 key="mcq_radio"
             )
             
             if st.button("Submit Answer ✔️", type="primary"):
-                correct_ans = q_data.get("correct", "A") # Fallback to A if missing
+                correct_ans = q_data.get("correct", "A") 
                 score = 100 if user_choice == correct_ans else 0
                 st.session_state.progress_data.append({"Subject": subject, "Topic": topic, "Score": score})
                 st.session_state.user_choice = user_choice 
                 st.session_state.answered = True
                 st.rerun() 
                 
-        else: # Theory Mode
+        else: 
             student_answer = st.text_area("Type your answer below:", key="theory_text")
             
             if st.button("Submit Answer ✔️", type="primary"):
@@ -227,7 +233,6 @@ else:
                         except Exception as e:
                             st.error(f"Grading system crashed. Reason: {e}")
 
-    # --- STATE B: SHOWING RESULTS ---
     if st.session_state.answered:
         score = st.session_state.progress_data[-1]["Score"] 
         
@@ -241,7 +246,6 @@ else:
             correct_ans = q_data.get("correct", "A")
             user_choice = st.session_state.user_choice
             
-            # Draw the colored boxes
             for opt in ["A", "B", "C", "D"]:
                 text = f"{opt}) {q_data.get(opt, '')}"
                 if opt == correct_ans:
