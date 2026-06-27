@@ -3,65 +3,91 @@ import urllib.parse
 import json
 import pandas as pd
 import requests
-import random  
+import random
 from groq import Groq
 
-# 1. Initialization & Keys
+# ==========================================
+# 1. INITIALIZATION & API SETUP
+# ==========================================
 api_token = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=api_token)
-N8N_WEBHOOK_URL = "https://your-n8n-webhook-url-here" 
+N8N_WEBHOOK_URL = "https://hammad2026nustclasses.app.n8n.cloud/webhook/d8e699f0-59ab-4b77-9602-54f16e201939" 
 
+# Set up the page layout
 st.set_page_config(page_title="AI Quiz Generator", page_icon="🎯", layout="wide")
 
-# Callback function to instantly clear the screen when a setting is changed!
+# ==========================================
+# 2. CUSTOM BACKGROUND IMAGE (CSS)
+# ==========================================
+# You can change the URL below to any image link you prefer!
+background_image_url = "https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=1920"
+
+page_bg_img = f"""
+<style>
+[data-testid="stAppViewContainer"] {{
+    background-image: url("{background_image_url}");
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}}
+/* This makes the main middle column slightly transparent white so text is readable */
+[data-testid="stHeader"] {{
+    background-color: rgba(0,0,0,0);
+}}
+.block-container {{
+    background-color: rgba(255, 255, 255, 0.95);
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1);
+}}
+</style>
+"""
+st.markdown(page_bg_img, unsafe_allow_html=True)
+
+# ==========================================
+# 3. HELPER FUNCTIONS & SESSION STATES
+# ==========================================
 def reset_quiz():
+    """Instantly clears the board if a user changes the subject or topic."""
     st.session_state.current_q_data = None
     st.session_state.answered = False
 
-# 2. Setup Memory (Session States)
-if "progress_data" not in st.session_state:
-    st.session_state.progress_data = []  
-if "current_q_data" not in st.session_state:
-    st.session_state.current_q_data = None
-if "answered" not in st.session_state:
-    st.session_state.answered = False
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "student_name" not in st.session_state:
-    st.session_state.student_name = ""
-if "student_email" not in st.session_state:
-    st.session_state.student_email = ""
+if "progress_data" not in st.session_state: st.session_state.progress_data = []  
+if "current_q_data" not in st.session_state: st.session_state.current_q_data = None
+if "answered" not in st.session_state: st.session_state.answered = False
+if "logged_in" not in st.session_state: st.session_state.logged_in = False
+if "student_name" not in st.session_state: st.session_state.student_name = ""
+if "student_email" not in st.session_state: st.session_state.student_email = ""
 
-# 3. The Strict Onboarding Gate (Login Screen)
+# ==========================================
+# 4. SECURE LOGIN GATE
+# ==========================================
 if not st.session_state.logged_in:
     st.title("🎯 Welcome to AI Quiz Generator")
     st.markdown("### Please create your session profile to begin.")
     
-    name_input = st.text_input("Enter your Full Name:")
-    email_input = st.text_input("Enter your Email Address:")
-    
-    if st.button("Save & Start Quiz 🚀"):
-        if name_input.strip() and email_input.strip():
-            st.session_state.student_name = name_input
-            st.session_state.student_email = email_input
-            st.session_state.logged_in = True
-            st.rerun()  
-        else:
-            st.error("Please fill out both your name and email to continue.")
-    st.stop()  
+    with st.container():
+        name_input = st.text_input("Enter your Full Name:", key="login_name")
+        email_input = st.text_input("Enter your Email Address:", key="login_email")
+        
+        if st.button("Save & Start Quiz 🚀", type="primary"):
+            if name_input.strip() and email_input.strip():
+                st.session_state.student_name = name_input
+                st.session_state.student_email = email_input
+                st.session_state.logged_in = True
+                st.rerun()  
+            else:
+                st.error("Please fill out both your name and email to continue.")
+    st.stop()
 
-# ---------------------------------------------------------
-# EVERYTHING BELOW THIS LINE ONLY SHOWS AFTER LOGGING IN
-# ---------------------------------------------------------
-
-# 4. Top Bar & Configuration Controls
+# ==========================================
+# 5. DASHBOARD & CONFIGURATION
+# ==========================================
 st.title(f"👋 Welcome, {st.session_state.student_name}!")
 st.markdown("---")
 st.subheader("📚 Configure Your Study Session")
 
 col_a, col_b, col_c = st.columns(3)
-
-# Notice we added `on_change=reset_quiz` to instantly refresh when you change a setting!
 grade_level = col_a.selectbox("Target Grade:", ["Grade 9", "Grade 10", "AS Level", "A Level"], on_change=reset_quiz)
 subject = col_b.text_input("Academic Subject:", placeholder="e.g., Physics", on_change=reset_quiz)
 topic = col_c.text_input("Topic Area:", placeholder="e.g., Kinematics", on_change=reset_quiz)
@@ -71,58 +97,61 @@ question_length = "short"
 if study_mode == "Theory":
     question_length = st.selectbox("Select Theory Length:", ["Short Question", "Long Question"], on_change=reset_quiz)
 
-# 5. The Core Loop: Generating vs Answering
+# ==========================================
+# 6. QUESTION GENERATION ENGINE
+# ==========================================
 if st.session_state.current_q_data is None:
-    if st.button("Generate Question 🧠"):
+    if st.button("Generate Question 🧠", type="primary"):
         if subject.strip() == "" or topic.strip() == "":
-            st.error("Please fill in both Subject and Topic.")
+            st.error("Please fill in both Subject and Topic before generating.")
         else:
-            with st.spinner("Generating a unique problem..."):
+            with st.spinner("Analyzing curriculum and generating a unique problem..."):
                 random_seed = random.randint(1, 100000) 
                 
                 if study_mode == "Multiple Choice (MCQ)":
                     prompt = f"""
-                    You are a professor. Create ONE highly unique multiple choice question for {grade_level} {subject} about {topic}.
-                    Randomization Seed: {random_seed}. Do NOT use standard textbook examples. Make it unpredictable.
-                    You MUST output ONLY valid JSON format.
-                    Format exactly like this: {{"question": "The question text", "A": "Option A text", "B": "Option B text", "C": "Option C text", "D": "Option D text", "correct": "A"}}
+                    You are an expert professor. Create ONE unique, challenging, and factually accurate multiple choice question for {grade_level} {subject} on {topic}.
+                    Seed: {random_seed}.
+                    CRITICAL RULES:
+                    1. The correct answer must be absolutely factually correct.
+                    2. The other 3 options must be plausible distractors related to the topic, but factually incorrect.
+                    3. Randomly assign the correct answer to A, B, C, or D. Do NOT always make it A.
+                    4. EVERY option must have descriptive text.
+                    You MUST output ONLY valid JSON format exactly like this:
+                    {{"question": "Question text here?", "A": "First option text", "B": "Second option text", "C": "Third option text", "D": "Fourth option text", "correct": "C"}}
                     """
                 else:
                     length_inst = "maximum 2 sentences." if question_length == "Short Question" else "a complex, multi-part scenario."
                     prompt = f"""
-                    You are a professor. Create ONE highly unique {question_length} for {grade_level} {subject} about {topic}. 
-                    Randomization Seed: {random_seed}. Do NOT use standard textbook examples. Make it unpredictable.
-                    It must be {length_inst}
-                    You MUST output ONLY valid JSON format.
-                    Format exactly like this: {{"question": "The question text"}}
+                    You are an expert professor. Create ONE factually accurate {question_length} for {grade_level} {subject} about {topic}. 
+                    Seed: {random_seed}. It must be {length_inst}
+                    You MUST output ONLY valid JSON format exactly like this: 
+                    {{"question": "The question text"}}
                     """
 
                 try:
-                    # Added response_format={"type": "json_object"} to force perfect JSON output
                     response = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[{"role": "user", "content": prompt}],
-                        temperature=0.9,
+                        temperature=0.7,
                         response_format={"type": "json_object"} 
                     )
                     
                     raw_text = response.choices[0].message.content.strip()
-                    
-                    # Bulletproof JSON extractor (looks only for data between { and })
                     start_idx = raw_text.find('{')
                     end_idx = raw_text.rfind('}')
-                    if start_idx != -1 and end_idx != -1:
-                        clean_json = raw_text[start_idx:end_idx+1]
-                    else:
-                        clean_json = raw_text
+                    clean_json = raw_text[start_idx:end_idx+1] if start_idx != -1 else raw_text
                         
                     st.session_state.current_q_data = json.loads(clean_json)
                     st.session_state.current_q_data['type'] = study_mode
                     st.session_state.answered = False
                     st.rerun() 
                 except Exception as e:
-                    st.error(f"Network formatting error. Please click generate again.")
+                    st.error(f"Network error while generating question: {e}")
 
+# ==========================================
+# 7. ACTIVE QUIZ & GRADING LOOP
+# ==========================================
 else:
     st.markdown("---")
     st.subheader("📋 Question:")
@@ -132,28 +161,41 @@ else:
     search_query = urllib.parse.quote(f"{subject} {topic} answer explanation")
     study_link = f"https://www.google.com/search?q={search_query}"
 
+    # --- STATE A: WAITING FOR STUDENT TO ANSWER ---
     if not st.session_state.answered:
+        
         if q_data['type'] == "Multiple Choice (MCQ)":
-            user_choice = st.radio("Select your answer:", ["A", "B", "C", "D"], format_func=lambda x: f"{x}) {q_data[x]}")
+            user_choice = st.radio(
+                "Select your answer:", 
+                ["A", "B", "C", "D"], 
+                format_func=lambda x: f"{x}) {q_data.get(x, 'Error: Option text missing')}", 
+                key="mcq_radio"
+            )
             
-            if st.button("Submit Answer"):
-                correct_ans = q_data["correct"]
+            if st.button("Submit Answer ✔️", type="primary"):
+                correct_ans = q_data.get("correct", "A") # Fallback to A if missing
                 score = 100 if user_choice == correct_ans else 0
                 st.session_state.progress_data.append({"Subject": subject, "Topic": topic, "Score": score})
                 st.session_state.user_choice = user_choice 
                 st.session_state.answered = True
                 st.rerun() 
                 
-        else:
-            student_answer = st.text_area("Type your answer:")
-            if st.button("Submit Answer"):
+        else: # Theory Mode
+            student_answer = st.text_area("Type your answer below:", key="theory_text")
+            
+            if st.button("Submit Answer ✔️", type="primary"):
                 if student_answer.strip() == "":
-                    st.error("Please type an answer.")
+                    st.error("⚠️ Please type an answer before submitting.")
                 else:
-                    with st.spinner("Grading..."):
-                        eval_prompt = f"""Evaluate this answer for correctness. Question: {q_data['question']}. Answer: {student_answer}.
-                        Output ONLY valid JSON format: {{"verdict": "CORRECT" or "INCORRECT", "explanation": "1 sentence explanation"}}"""
-                        
+                    with st.spinner("AI Professor is grading your answer..."):
+                        eval_prompt = f"""
+                        Evaluate this answer for correctness. 
+                        Question: {q_data['question']}
+                        Student Answer: {student_answer}
+                        You MUST output ONLY valid JSON format exactly like this:
+                        {{"verdict": "CORRECT", "explanation": "1 sentence explanation."}}
+                        Or if wrong: {{"verdict": "INCORRECT", "explanation": "1 sentence explanation of the right answer."}}
+                        """
                         try:
                             eval_resp = client.chat.completions.create(
                                 model="llama-3.3-70b-versatile",
@@ -168,15 +210,16 @@ else:
                             clean_eval = eval_text[start_idx:end_idx+1] if start_idx != -1 else eval_text
                             
                             eval_json = json.loads(clean_eval)
+                            score = 100 if eval_json.get("verdict", "") == "CORRECT" else 0
                             
-                            score = 100 if eval_json["verdict"] == "CORRECT" else 0
                             st.session_state.progress_data.append({"Subject": subject, "Topic": topic, "Score": score})
                             st.session_state.theory_eval = eval_json 
                             st.session_state.answered = True
                             st.rerun()
-                        except:
-                            st.error("Grading system encountered a formatting error.")
+                        except Exception as e:
+                            st.error(f"Grading system crashed. Reason: {e}")
 
+    # --- STATE B: SHOWING RESULTS ---
     if st.session_state.answered:
         score = st.session_state.progress_data[-1]["Score"] 
         
@@ -187,22 +230,24 @@ else:
             st.markdown("<h1 style='text-align: center;'>😢 Keep Trying!</h1>", unsafe_allow_html=True)
             
         if q_data['type'] == "Multiple Choice (MCQ)":
-            correct_ans = q_data["correct"]
+            correct_ans = q_data.get("correct", "A")
             user_choice = st.session_state.user_choice
+            
+            # Draw the colored boxes
             for opt in ["A", "B", "C", "D"]:
-                text = f"{opt}) {q_data[opt]}"
+                text = f"{opt}) {q_data.get(opt, '')}"
                 if opt == correct_ans:
-                    st.markdown(f"<div style='background-color:#d4edda; padding:10px; border-radius:5px; color:#155724; margin:5px 0;'>✅ <b>{text}</b> (Correct)</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='background-color:#d4edda; padding:10px; border-radius:5px; color:#155724; border: 1px solid #c3e6cb; margin:5px 0;'>✅ <b>{text}</b> (Correct Answer)</div>", unsafe_allow_html=True)
                 elif opt == user_choice and user_choice != correct_ans:
-                    st.markdown(f"<div style='background-color:#f8d7da; padding:10px; border-radius:5px; color:#721c24; margin:5px 0;'>❌ <b>{text}</b> (Your Answer)</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='background-color:#f8d7da; padding:10px; border-radius:5px; color:#721c24; border: 1px solid #f5c6cb; margin:5px 0;'>❌ <b>{text}</b> (Your Answer)</div>", unsafe_allow_html=True)
                 else:
-                    st.markdown(f"<div style='padding:10px; margin:5px 0;'>{text}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='background-color:#f8f9fa; padding:10px; border-radius:5px; color:#383d41; border: 1px solid #e2e3e5; margin:5px 0;'>{text}</div>", unsafe_allow_html=True)
         else:
             eval_json = st.session_state.theory_eval
             if score == 100:
-                st.success(f"{eval_json['explanation']}")
+                st.success(f"{eval_json.get('explanation', 'Correct!')}")
             else:
-                st.error(f"{eval_json['explanation']}")
+                st.error(f"{eval_json.get('explanation', 'Incorrect.')}")
                 
         st.markdown(f"**📚 Study Link:** [Click here to review {topic}]({study_link})")
         st.markdown("---")
@@ -212,7 +257,9 @@ else:
             st.session_state.answered = False
             st.rerun() 
 
-# 6. Student Progress Tracker & Graph
+# ==========================================
+# 8. PROGRESS GRAPH & EXPORT DASHBOARD
+# ==========================================
 if len(st.session_state.progress_data) > 0:
     st.markdown("---")
     st.header("📈 Your Progress Dashboard")
