@@ -19,26 +19,33 @@ st.set_page_config(page_title="AI Quiz Generator", page_icon="🎯", layout="wid
 # ==========================================
 # 2. CUSTOM BACKGROUND IMAGE (CSS)
 # ==========================================
-# You can change the URL below to any image link you prefer!
-background_image_url = "https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=1920"
+# A dynamic, quiz-themed background image (Question Marks)
+background_image_url = "https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?q=80&w=1920"
 
 page_bg_img = f"""
 <style>
-[data-testid="stAppViewContainer"] {{
+/* 1. This anchors the background to the absolute root of the entire webpage */
+.stApp {{
     background-image: url("{background_image_url}");
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
+    background-repeat: no-repeat;
 }}
-/* This makes the main middle column slightly transparent white so text is readable */
-[data-testid="stHeader"] {{
-    background-color: rgba(0,0,0,0);
+
+/* 2. Makes the top header bar transparent so it doesn't block the image */
+header[data-testid="stHeader"] {{
+    background: transparent !important;
 }}
+
+/* 3. The main content box: Slightly transparent white (85% opacity) so text is highly readable, but the background is always visible behind it */
 .block-container {{
-    background-color: rgba(255, 255, 255, 0.95);
-    padding: 2rem;
+    background-color: rgba(255, 255, 255, 0.85); 
+    padding: 3rem !important;
     border-radius: 15px;
-    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.3);
+    margin-top: 2rem;
+    margin-bottom: 2rem;
 }}
 </style>
 """
@@ -88,7 +95,8 @@ st.markdown("---")
 st.subheader("📚 Configure Your Study Session")
 
 col_a, col_b, col_c = st.columns(3)
-grade_level = col_a.selectbox("Target Grade:", ["Grade 9", "Grade 10", "AS Level", "A Level"], on_change=reset_quiz)
+# Set AS Level as the default option by setting index=2
+grade_level = col_a.selectbox("Target Grade:", ["Grade 9", "Grade 10", "AS Level", "A Level"], index=2, on_change=reset_quiz)
 subject = col_b.text_input("Academic Subject:", placeholder="e.g., Physics", on_change=reset_quiz)
 topic = col_c.text_input("Topic Area:", placeholder="e.g., Kinematics", on_change=reset_quiz)
 
@@ -110,20 +118,20 @@ if st.session_state.current_q_data is None:
                 
                 if study_mode == "Multiple Choice (MCQ)":
                     prompt = f"""
-                    You are an expert professor. Create ONE unique, challenging, and factually accurate multiple choice question for {grade_level} {subject} on {topic}.
+                    You are an expert academic professor. Create ONE unique, challenging, and factually accurate multiple choice question for {grade_level} {subject} on {topic}.
                     Seed: {random_seed}.
                     CRITICAL RULES:
-                    1. The correct answer must be absolutely factually correct.
-                    2. The other 3 options must be plausible distractors related to the topic, but factually incorrect.
-                    3. Randomly assign the correct answer to A, B, C, or D. Do NOT always make it A.
-                    4. EVERY option must have descriptive text.
+                    1. The correct answer MUST be absolutely factually correct.
+                    2. The other 3 options MUST be plausible distractors related to the topic, but factually incorrect.
+                    3. Randomly assign the correct answer to A, B, C, or D. DO NOT constantly make the answer A or B. It must be randomized.
+                    4. EVERY option must have descriptive text content. No blank options.
                     You MUST output ONLY valid JSON format exactly like this:
                     {{"question": "Question text here?", "A": "First option text", "B": "Second option text", "C": "Third option text", "D": "Fourth option text", "correct": "C"}}
                     """
                 else:
                     length_inst = "maximum 2 sentences." if question_length == "Short Question" else "a complex, multi-part scenario."
                     prompt = f"""
-                    You are an expert professor. Create ONE factually accurate {question_length} for {grade_level} {subject} about {topic}. 
+                    You are an expert academic professor. Create ONE factually accurate {question_length} for {grade_level} {subject} about {topic}. 
                     Seed: {random_seed}. It must be {length_inst}
                     You MUST output ONLY valid JSON format exactly like this: 
                     {{"question": "The question text"}}
@@ -133,7 +141,7 @@ if st.session_state.current_q_data is None:
                     response = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[{"role": "user", "content": prompt}],
-                        temperature=0.7,
+                        temperature=0.8,
                         response_format={"type": "json_object"} 
                     )
                     
